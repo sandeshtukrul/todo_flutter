@@ -2,7 +2,9 @@
 
 A clean, gesture-friendly offline to-do list app built with Flutter and Hive.
 
-<img src="assets/images/todo_demo.gif" alt="To-Do App Demo" width="800" height="400">
+<p align="center">
+  <img src="assets/demo/todo_demo.gif" alt="To-Do App Demo" width="50%">
+</p>
 
 ## 🚀 Overview
 This app is a productivity tool that helps you manage your daily tasks efficiently with gesture-based controls, beautiful animations, and local storage.
@@ -34,8 +36,16 @@ This app is a productivity tool that helps you manage your daily tasks efficient
 - ✅ Android
 
 ## 📸 Screenshots
-<img src="assets/images/screen1.png" alt="Main UI" width="45%">
-<img src="assets/images/screen2.png" alt="Add Task UI" width="45%">
+<p align="center">
+  <img src="assets/demo/Home_Empty.jpg" alt="Home Empty" width="30%"> 
+  <img src="assets/demo/Home_Drawer.jpg" alt="Home Drawer" width="30%"> 
+  <img src="assets/demo/Home_Tasks.jpg" alt="Home Tasks" width="30%">
+</p>
+<p align="center">
+  <img src="assets/demo/Home_Delete_Warning.jpg" alt="Home Delete Warning" width="30%">  
+  <img src="assets/demo/Add_Task.jpg" alt="Add Task" width="30%">  
+  <img src="assets/demo/Update_Task.jpg" alt="Update Task" width="30%">
+</p>
 
 ## 🔧 Tech Stack
 - **Hive** and **Hive Flutter** for local database storage

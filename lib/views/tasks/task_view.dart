@@ -13,13 +13,11 @@ import 'package:todo/views/tasks/widget/task_view_app_bar.dart';
 class TaskView extends StatefulWidget {
   const TaskView({
     super.key,
-    this.titleTaskController,
-    this.descriptionTaskController,
     this.task,
+    required TextEditingController titleTaskController,
+    required TextEditingController descriptionTaskController,
   });
 
-  final TextEditingController? titleTaskController;
-  final TextEditingController? descriptionTaskController;
   final Task? task;
 
   @override
@@ -27,92 +25,91 @@ class TaskView extends StatefulWidget {
 }
 
 class _TaskViewState extends State<TaskView> {
-  var title;
-  var subTitle;
-  TimeOfDay? time;
-  DateTime? date;
+  late final TextEditingController titleTaskController;
+  late final TextEditingController descriptionTaskController;
 
-  // show selected time as string format
-  String showTime(TimeOfDay? time) {
-    if (widget.task?.createdAtTime == null) {
-      if (time == null) {
-        return TimeOfDay.now().format(context);
-      } else {
-        return time.format(context);
-      }
+  // Local state for date and time
+  TimeOfDay? _selectedTime;
+  DateTime? _selectedDate;
+
+  // helper getter to determine if we are in editing an existing task
+  bool get isEditMode => widget.task != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (isEditMode) {
+      // Editing existing task: Initialize state from task
+      titleTaskController = TextEditingController(text: widget.task!.title);
+      descriptionTaskController =
+          TextEditingController(text: widget.task!.subTitle);
+      _selectedDate = widget.task!.createdAtDate;
+      // Safely parse time string
+      _selectedTime = _parseTimeOfDay(widget.task!.createdAtTime);
     } else {
-      return widget.task!.createdAtTime;
+      // Adding new task: Initialize with defaults or empty
+      titleTaskController = TextEditingController();
+      descriptionTaskController = TextEditingController();
+      _selectedDate = DateTime.now(); // Default to now
+      _selectedTime = TimeOfDay.now();
     }
   }
 
-  // show selected date as string format
-  String showDate(DateTime? date) {
-    if (widget.task?.createdAtDate == null) {
-      if (date == null) {
-        return DateFormat('d MMM y').format(DateTime.now());
-      } else {
-        return DateFormat('d MMM y').format(date);
-      }
-    } else {
-      return DateFormat('d MMM y').format(widget.task!.createdAtDate);
-    }
-  }
-
-  // Show selected date as initial value of date picker
-  DateTime showInitialDate(DateTime? date) {
-    if (widget.task?.createdAtDate == null) {
-      if (date == null) {
-        return DateTime.now();
-      } else {
-        return date;
-      }
-    } else {
-      return widget.task!.createdAtDate;
-    }
+  @override
+  void dispose() {
+    titleTaskController.dispose();
+    descriptionTaskController.dispose();
+    super.dispose();
   }
 
   // Convert String to TimeOfDay
-  TimeOfDay parseTimeOfDay(String timeString) {
-    final format = DateFormat.jm();
-    final DateTime dateTime = format.parse(timeString);
-    return TimeOfDay(hour: dateTime.hour, minute: dateTime.minute);
+  TimeOfDay? _parseTimeOfDay(String? timeString) {
+    if (timeString == null || timeString.isEmpty) {
+      return null;
+    }
+
+    try {
+      final format = DateFormat.jm(); // Assumes "h:mm a" format like "1:30 PM"
+      final dateTime = format.parse(timeString);
+      return TimeOfDay(hour: dateTime.hour, minute: dateTime.minute);
+    } catch (e) {
+      print("Error parsing time string '$timeString': $e");
+      // Optionally return TimeOfDay.now() or handle error differently
+      return null;
+    }
   }
 
-  // Show selected time as initial value of time picker
-  TimeOfDay showInitialTime(TimeOfDay? time) {
-    if (widget.task?.createdAtTime == null) {
-      if (time == null) {
-        return TimeOfDay.now();
-      } else {
-        return time;
-      }
-    } else {
-      return parseTimeOfDay(widget.task!.createdAtTime);
-    }
+  // show selected time as string format
+  String _showTime(TimeOfDay? time) {
+    return (time ?? TimeOfDay.now()).format(context);
+  }
+
+  // show selected date as string format
+  String _showDate(DateTime? date) {
+    return DateFormat('d MMM y').format(date ?? DateTime.now());
   }
 
   /// Main function to add new task or update existing task
   dynamic addOrUpdateTask() {
     /// Below we update current task
-    final newTitle = widget.titleTaskController?.text.trim();
-    final newSubTitle = widget.descriptionTaskController?.text.trim();
+    final newTitle = titleTaskController.text.trim();
+    final newSubTitle = descriptionTaskController.text.trim();
 
     // CASE 1: User wants to update an existing task
-    if (widget.task != null) {
+    if (isEditMode) {
       // If both are empty, show warning
-      if ((newTitle?.isEmpty ?? true) && (newSubTitle?.isEmpty ?? true)) {
+      if ((newTitle.isEmpty && newSubTitle.isEmpty)) {
         updateTaskWarning(context);
         return;
       }
 
       try {
-        if (newTitle?.isNotEmpty ?? false) {
-          widget.task!.title = newTitle!;
-        }
+        widget.task!.title = newTitle;
+        widget.task!.subTitle = newSubTitle;
 
-        if (newSubTitle?.isNotEmpty ?? false) {
-          widget.task!.subTitle = newSubTitle!;
-        }
+        widget.task!.createdAtDate = _selectedDate ?? DateTime.now();
+        widget.task!.createdAtTime = _showTime(_selectedTime);
 
         widget.task!.save();
         Navigator.pop(context);
@@ -123,40 +120,32 @@ class _TaskViewState extends State<TaskView> {
 
     // CASE 2: User wants to add a new task
     else {
-      if ((title?.isNotEmpty ?? false) && (subTitle?.isNotEmpty ?? false)) {
-        final task = Task.create(
-          title: title,
-          subTitle: subTitle,
-          createdAtTime: time,
-          createdAtDate: date,
-        );
-
-        // we are adding new task to Hive Db using inherited widget
-        BaseWidget.of(context).dataStore.addTask(task: task);
-
-        Navigator.pop(context);
-      } else {
+      if ((newTitle.isEmpty && newSubTitle.isEmpty)) {
         /// if user want to add new task but entered nothing
         emptyWarning(context);
+        return;
       }
-    }
-  }
 
-  // Check if task already exists
-  bool isTaskAlreadyExists() {
-    if (widget.titleTaskController?.text == null &&
-        widget.descriptionTaskController?.text == null) {
-      return false;
-    } else {
-      return true;
+      final task = Task.create(
+        title: newTitle,
+        subTitle: newSubTitle,
+        createdAtTime: _selectedTime ?? TimeOfDay.now(),
+        createdAtDate: _selectedDate ?? DateTime.now(),
+      );
+
+      // we are adding new task to Hive Db using inherited widget
+      BaseWidget.of(context).dataStore.addTask(task: task);
+
+      Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    var textTheme = Theme.of(context).textTheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return GestureDetector(
-      onTap: () => FocusManager.instance.primaryFocus!.unfocus(),
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: Scaffold(
         /// AppBar
         appBar: TaskViewAppBar(context),
@@ -172,10 +161,7 @@ class _TaskViewState extends State<TaskView> {
                 _buildTopSideTexts(textTheme),
 
                 /// Main Task view activity
-                _buildMainTaskViewActivity(
-                  textTheme,
-                  context,
-                ),
+                _buildMainTaskViewActivity(context),
 
                 /// Bottom side button
                 _buildBottomSideButtons()
@@ -191,11 +177,11 @@ class _TaskViewState extends State<TaskView> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Row(
-        mainAxisAlignment: isTaskAlreadyExists()
+        mainAxisAlignment: isEditMode
             ? MainAxisAlignment.spaceEvenly
             : MainAxisAlignment.center,
         children: [
-          isTaskAlreadyExists()
+          isEditMode
               ?
 
               /// Delete current task button
@@ -242,14 +228,12 @@ class _TaskViewState extends State<TaskView> {
             child: Row(
               children: [
                 Icon(
-                  Icons.add,
+                  isEditMode ? Icons.check_circle_outline : Icons.add,
                   color: Colors.white,
                 ),
                 5.w,
                 Text(
-                  isTaskAlreadyExists()
-                      ? AppStr.updateTaskString
-                      : AppStr.addTaskString,
+                  isEditMode ? AppStr.updateTaskString : AppStr.addTaskString,
                   style: TextStyle(
                     color: Colors.white,
                   ),
@@ -262,7 +246,8 @@ class _TaskViewState extends State<TaskView> {
     );
   }
 
-  Widget _buildMainTaskViewActivity(TextTheme textTheme, BuildContext context) {
+  Widget _buildMainTaskViewActivity(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return SizedBox(
       width: double.infinity,
       height: 530,
@@ -280,27 +265,19 @@ class _TaskViewState extends State<TaskView> {
 
           /// Task Title
           RepTextField(
-            controller: widget.titleTaskController,
-            onFieldSubmitted: (String inputTitle) {
-              title = inputTitle;
-            },
-            onChanged: (String inputTitle) {
-              title = inputTitle;
-            },
+            controller: titleTaskController,
+            onFieldSubmitted: (_) {},
+            onChanged: (_) {},
           ),
 
           10.h,
 
           /// Description text
           RepTextField(
-            controller: widget.descriptionTaskController,
+            controller: descriptionTaskController,
             isForDescription: true,
-            onFieldSubmitted: (String inputSubTitle) {
-              subTitle = inputSubTitle;
-            },
-            onChanged: (String inputSubTitle) {
-              subTitle = inputSubTitle;
-            },
+            onFieldSubmitted: (_) {},
+            onChanged: (_) {},
           ),
 
           /// Time Selection
@@ -309,23 +286,17 @@ class _TaskViewState extends State<TaskView> {
             onTap: () async {
               TimeOfDay? selectedTime = await showTimePicker(
                 context: context,
-                initialTime: showInitialTime(time),
+                initialTime: _selectedTime ?? TimeOfDay.now(),
               );
 
               if (selectedTime != null) {
-                final formattedTime = selectedTime.format(context);
-
                 /// here i get the selected time from user.
                 setState(() {
-                  if (widget.task?.createdAtTime == null) {
-                    time = selectedTime;
-                  } else {
-                    widget.task?.createdAtTime = formattedTime;
-                  }
+                  _selectedTime = selectedTime;
                 });
               }
             },
-            time: showTime(time),
+            time: _showTime(_selectedTime),
           ),
 
           /// Date Selection
@@ -336,23 +307,19 @@ class _TaskViewState extends State<TaskView> {
                 context: context,
                 firstDate: DateTime(2000),
                 lastDate: DateTime(2100),
-                initialDate: showInitialDate(date),
+                initialDate: _selectedDate ?? DateTime.now(),
               );
 
               if (selectedDate != null) {
                 /// here i get the selected date from user.
                 setState(() {
-                  if (widget.task?.createdAtDate == null) {
-                    date = selectedDate;
-                  } else {
-                    widget.task?.createdAtDate = selectedDate;
-                  }
+                  _selectedDate = selectedDate;
                 });
 
                 /// for proper formatting use intl package in dep.
               }
             },
-            time: showDate(date),
+            time: _showDate(_selectedDate),
           ),
         ],
       ),
@@ -375,10 +342,9 @@ class _TaskViewState extends State<TaskView> {
           ),
           RichText(
             text: TextSpan(
-                text: isTaskAlreadyExists()
-                    ? AppStr.updateCurrentTask
-                    : AppStr.addNewTask,
-                style: textTheme.headlineLarge,
+                text: isEditMode ? AppStr.updateCurrentTask : AppStr.addNewTask,
+                style: textTheme.headlineLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
                 children: [
                   TextSpan(
                       text: AppStr.taskString,
